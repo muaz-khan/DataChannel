@@ -1,0 +1,325 @@
+﻿<!--
+> Muaz Khan     - https://github.com/muaz-khan 
+> MIT License   - https://www.webrtc-experiment.com/licence/
+> Documentation - https://github.com/muaz-khan/WebRTC-Experiment/tree/master/DataChannel
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>DataChannel.js » A WebRTC Library for Data Sharing ® Muaz Khan</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+        <link rel="author" type="text/html" href="https://plus.google.com/+MuazKhan">
+        <meta name="author" content="Muaz Khan">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        
+        <link rel="stylesheet" href="https://cdn.webrtc-experiment.com/style.css">
+        
+        <style>
+            #chat-output div, #file-progress div {
+                border: 1px solid black;
+                border-bottom: 0;
+                padding: .1em .4em;
+            }
+
+            input {
+                border: 1px solid black;
+                font-family: inherit;
+                font-size: 1em;
+                margin: .1em .3em;
+                outline: none;
+                padding: .1em .2em;
+                width: 97%;
+            }
+
+            #chat-output, #file-progress {
+                margin: 0 0 0 .4em;
+                max-height: 12em;
+                overflow: auto;
+            }
+        </style>
+        <script>
+            document.createElement('article');
+            document.createElement('footer');
+        </script>
+		
+        <!-- DataChannel.js library-->
+        
+        <script src="https://cdn.webrtc-experiment.com/DataChannel.js"> </script>
+        <script src="https://cdn.webrtc-experiment.com/firebase.js"> </script>
+    </head>
+
+    <body>
+        <article>
+            <header style="text-align: center;">
+                <h1>
+                    <a href="https://github.com/muaz-khan/DataChannel" target="_blank">DataChannel.js</a>
+                    » A WebRTC Library for Data Sharing
+                </h1>            
+                <p>
+                    <a href="https://www.webrtc-experiment.com/">HOME</a>
+                    <span> &copy; </span>
+                    <a href="http://www.MuazKhan.com/" target="_blank">Muaz Khan</a>
+                    
+                    .
+                    <a href="http://twitter.com/WebRTCWeb" target="_blank" title="Twitter profile for WebRTC Experiments">@WebRTCWeb</a>
+                    
+                    .
+                    <a href="https://github.com/muaz-khan?tab=repositories" target="_blank" title="Github Profile">Github</a>
+                    
+                    .
+                    <a href="https://github.com/muaz-khan/DataChannel/issues?state=open" target="_blank">Latest issues</a>
+                    
+                    .
+                    <a href="https://github.com/muaz-khan/DataChannel/commits/master" target="_blank">What's New?</a>
+                </p>
+            </header>
+
+            <div class="github-stargazers"></div>
+		
+            <!-- just copy this <section> and next script -->
+            <section class="experiment">
+                <section>
+                    <h2 style="border: 0; padding-left: .5em;">Open New DataChannel Connection</h2>
+                    <button id="open-channel">Open</button>
+                </section>
+
+                <table style="width: 100%;" id="channels-list"></table>
+                <table style="width: 100%;">
+                    <tr>
+                        <td>
+                            <h2 style="display: block; font-size: 1em; text-align: center;">Text Chat</h2>
+
+                            <div id="chat-output"></div>
+                            <input type="text" id="chat-input" style="font-size: 1.2em;" placeholder="chat message" disabled>
+                        </td>
+                        <td style="background: white;">
+                            <h2 style="display: block; font-size: 1em; text-align: center;">Share Files</h2>
+                            <input type="file" id="file" disabled>
+
+                            <div id="file-progress"></div>
+                        </td>
+                    </tr>
+                </table>
+            </section>
+		
+            <script>
+                var channel = new DataChannel(); // DataChannel.js
+                
+                channel.firebase = 'webrtc-experiment';
+
+                // "ondatachannel" is fired for each new data channel
+                channel.ondatachannel = function(channel00) {
+                    var alreadyExist = document.getElementById(channel00.id);
+                    if (alreadyExist) return;
+
+                    var tr = document.createElement('tr');
+                    tr.setAttribute('id', channel00.owner);
+                    tr.innerHTML = '<td>' + channel00.id + '</td>' +
+                        '<td><button class="join" id="' + channel00.id + '">Join</button></td>';
+
+                    channelsList.insertBefore(tr, channelsList.firstChild);
+
+                    // when someone clicks table-row; joining the relevant data channel
+                    tr.onclick = function() {
+
+                        // manually joining a data channel
+                        channel.join({
+                            id: this.querySelector('.join').id,
+                            owner: this.id
+                        });
+
+                        channelsList.style.display = 'none';
+                    };
+                };
+
+                // a text message or data
+                channel.onmessage = function(data, userid, latency) {
+                    appendDIV(data);
+
+                    console.debug(userid, 'posted', data);
+                    console.log('latency:', latency, 'ms');
+                };
+
+                // on data connection gets open
+                channel.onopen = function() {
+                    if (document.getElementById('chat-input')) document.getElementById('chat-input').disabled = false;
+                    if (document.getElementById('file')) document.getElementById('file').disabled = false;
+                    if (document.getElementById('open-channel')) document.getElementById('open-channel').disabled = true;
+                };
+
+                // sending/receiving file(s)
+                // channel.autoSaveToDisk = false;
+                channel.onFileProgress = function(packets, uuid) {
+                    appendDIV(uuid + ': ' + packets.remaining + '..', 'file', fileProgress);
+                };
+
+                channel.onFileSent = function(file) {
+                    appendDIV(file.name + ' sent.', fileProgress);
+                };
+
+                channel.onFileReceived = function(fileName) {
+                    appendDIV(fileName + ' received.', fileProgress);
+                };
+
+                document.getElementById('file').onchange = function() {
+                    channel.send(this.files[0]);
+                };
+
+                var chatOutput = document.getElementById('chat-output'),
+                    fileProgress = document.getElementById('file-progress');
+
+                function appendDIV(data, parent) {
+                    var div = document.createElement('div');
+                    div.innerHTML = data;
+
+                    if (!parent) chatOutput.insertBefore(div, chatOutput.firstChild);
+                    else fileProgress.insertBefore(div, fileProgress.firstChild);
+
+                    div.tabIndex = 0;
+                    div.focus();
+
+                    chatInput.focus();
+                }
+
+                var chatInput = document.getElementById('chat-input');
+                chatInput.onkeypress = function(e) {
+                    if (e.keyCode !== 13 || !this.value) return;
+                    appendDIV(this.value);
+
+                    // sending text message
+                    channel.send(this.value);
+
+                    this.value = '';
+                    this.focus();
+                };
+
+                // users presence detection
+                channel.onleave = function(userid) {
+                    var message = 'A user whose id is ' + userid + ' left you!';
+                    appendDIV(message);
+                    console.warn(message);
+                };
+
+                var channelsList = document.getElementById('channels-list');
+
+                document.getElementById('open-channel').onclick = function() {
+                    this.disabled = true;
+
+                    channel.open();
+                };
+
+                // searching for existing channels
+                channel.connect();
+            </script>
+			
+            <section class="experiment">
+                <h2 class="header">DataChannel.js Features:</h2>
+                <ol>
+                    <li>Direct messages — to any user using his `user-id`</li>
+                    <li>Eject/Reject any user — using his `user-id`</li>
+                    <li>Leave any room (i.e. data session) or close entire session using `leave` method</li>
+                    <li>File size is limitless!</li>
+                    <li>Text message length is limitless!</li>
+                    <li>Size of data is also limitless!</li>
+                    <li>Fallback to firebase/socket.io/websockets/etc.</li>
+                    <li>Users' presence detection using `onleave`</li>
+                    <li>Latency detection</li>
+                    <li>Multi-longest strings/files concurrent transmission</li>
+                </ol>
+            </section>
+			
+            <section class="experiment">
+                <h2 class="header">How to use DataChannel.js?</h2>
+                <pre>
+&lt;script src="https://cdn.webrtc-experiment.com/DataChannel.js"&gt; &lt;/script&gt;
+
+&lt;input type="text" id="chat-input" disabled 
+       style="font-size: 2em; width: 98%;"&gt;&lt;br /&gt;
+&lt;div id="chat-output"&gt;&lt;/div&gt;
+
+&lt;script&gt;
+    var chatOutput = document.getElementById('chat-output');
+    var chatInput = document.getElementById('chat-input');
+    chatInput.onkeypress = function(e) {
+        if (e.keyCode != 13) return;
+        channel.send(this.value);
+        chatOutput.innerHTML = 'Me: ' + this.value + '&lt;hr /&gt;' 
+                             + chatOutput.innerHTML;
+        this.value = '';
+    };
+&lt;/script&gt;
+
+&lt;script&gt;
+    var channel = new DataChannel('Session Unique Identifier');
+
+    channel.onopen = function(userid) {
+        chatInput.disabled = false;
+        chatInput.value = 'Hi, ' + userid;
+        chatInput.focus();
+    };
+
+    channel.onmessage = function(message, userid) {
+        chatOutput.innerHTML = userid + ': ' + message + '&lt;hr /&gt;' 
+                             + chatOutput.innerHTML;
+    };
+
+    channel.onleave = function(userid) {
+        chatOutput.innerHTML = userid + ' Left.&lt;hr /&gt;' 
+                             + chatOutput.innerHTML;
+    };
+&lt;/script&gt;
+</pre>
+            </section>
+            
+            <section class="experiment">
+                <h2 class="header">Use your own socket.io for signaling</h2>
+            <pre>
+&lt;script&gt;
+    // by default <a href="http://firebase.com" target="_blank" rel="nofollow">Firebase</a> is used for signaling; you can override it
+    channel.<strong>openSignalingChannel</strong> = function(config) {
+        var socket = io.connect('http://your-site:8888');
+        socket.channel = config.channel || this.channel || 'default-channel';
+        socket.on('message', config.onmessage);
+
+        socket.send = function (data) {
+            socket.emit('message', data);
+        };
+
+        if (config.onopen) setTimeout(config.onopen, 1);
+        return socket;
+    }
+&lt;/script&gt;
+</pre>
+            </section>
+            
+            <section class="experiment own-widgets latest-commits">
+                <h2 class="header" id="updates" style="color: red; padding-bottom: .1em;"><a href="https://github.com/muaz-khan/WebRTC-Experiment/commits/master" target="_blank">Latest Updates</a></h2>
+                <div id="github-commits"></div>
+            </section>
+		
+            <section class="experiment">
+                <h2 class="header" id="feedback">Feedback</h2>
+                <div>
+                    <textarea id="message" style="border: 1px solid rgb(189, 189, 189); height: 8em; margin: .2em; outline: none; resize: vertical; width: 98%;" placeholder="Have any message? Suggestions or something went wrong?"></textarea>
+                </div>
+                <button id="send-message" style="font-size: 1em;">Send Message</button><small style="margin-left: 1em;">Enter your email too; if you want "direct" reply!</small>
+            </section>
+        </article>
+        
+        <a href="https://github.com/muaz-khan/DataChannel" class="fork-left"></a>
+        
+        <footer>
+            <p>
+                <a href="https://www.webrtc-experiment.com/">WebRTC Experiments</a>
+                © <a href="https://plus.google.com/+MuazKhan" rel="author" target="_blank">Muaz Khan</a>
+                <a href="mailto:muazkh@gmail.com" target="_blank">muazkh@gmail.com</a>
+            </p>
+        </footer>
+    
+        <!-- commits.js is useless for you! -->
+        <script src="https://cdn.webrtc-experiment.com/commits.js" async> </script>
+    </body>
+</html>
